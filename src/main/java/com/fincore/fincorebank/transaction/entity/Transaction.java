@@ -1,6 +1,5 @@
 package com.fincore.fincorebank.transaction.entity;
 
-
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -33,6 +32,7 @@ public class Transaction {
     @Column(nullable = false, length = 20)
     private TransactionType transactionType;
 
+    @Builder.Default
     @Column(nullable = false)
     private LocalDateTime transactionDate = LocalDateTime.now();
 
@@ -47,4 +47,11 @@ public class Transaction {
 
     private String sourceAccount;
     private String destinationAccount;
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.transactionDate == null) {
+            this.transactionDate = LocalDateTime.now();
+        }
+    }
 }

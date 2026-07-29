@@ -31,15 +31,15 @@ public class AuditServiceImpl implements AuditService{
 	
 	@Override
 	public Map<String, Long> getSystemTotals() {
-		Long totalUsers = userRepo.count();
-		Long totalAccounts = accountRepo.count();
-		Long totalTransactions = transactionRepo.count();
-		
-		return Map.of(
-				"Total Users:", totalUsers,
-				"Total Accounts:", totalAccounts,
-				"Total Transactions:", totalTransactions
-				);
+	    Long totalUsers = userRepo.count();
+	    Long totalAccounts = accountRepo.count();
+	    Long totalTransactions = transactionRepo.count();
+	    
+	    return Map.of(
+	            "totalUsers", totalUsers,
+	            "totalAccounts", totalAccounts,
+	            "totalTransactions", totalTransactions
+	            );
 	}
 
 	@Override

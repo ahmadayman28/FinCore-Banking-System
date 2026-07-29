@@ -1,5 +1,6 @@
 package com.fincore.fincorebank.auth_users.service.impl;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -23,6 +24,7 @@ import com.fincore.fincorebank.auth_users.dtos.UserDTO;
 import com.fincore.fincorebank.auth_users.entity.User;
 import com.fincore.fincorebank.auth_users.repo.UserRepo;
 import com.fincore.fincorebank.auth_users.service.UserService;
+import com.fincore.fincorebank.aws.S3Service;
 import com.fincore.fincorebank.exceptions.BadRequestException;
 import com.fincore.fincorebank.exceptions.NotFoundException;
 import com.fincore.fincorebank.notification.dtos.NotificationDTO;
@@ -41,7 +43,8 @@ public class UserServiceImpl implements UserService{
 	private final NotificationService notificationService;
 	private final PasswordEncoder passwordEncoder;
 	private final ModelMapper modelMapper;
-	private final String uploadDir = "C:\\Users\\hp\\Downloads\\profilepic";
+	private final String uploadDir = "C:\\Users\\hp\\FinCore Banking System\\frontend\\public\\profile-picture\\";
+	private final S3Service s3Service;
 	
 	@Override
 	public User getCurrentLoggedInUser() {
@@ -146,5 +149,35 @@ public class UserServiceImpl implements UserService{
 			throw new RuntimeException(e.getMessage());
 		}
 	}
+	
+	@Override
+    public Response<?> uploadProfilePictureToS3(MultipartFile file){
+
+        log.info("Inside uploadProfilePictureToS3()");
+        User user = getCurrentLoggedInUser();
+
+        try {
+
+            if(user.getProfilePictureUrl() != null && !user.getProfilePictureUrl().isEmpty()){
+                s3Service.deleteFile(user.getProfilePictureUrl());
+            }
+            String s3Url = s3Service.uploadFile(file, "profile-pictures");
+
+            log.info("profile url is: {}", s3Url );
+
+            user.setProfilePictureUrl(s3Url);
+            userRepo.save(user);
+
+            return Response.builder()
+                    .statusCode(HttpStatus.OK.value())
+                    .message("Profile picture uploaded successfully.")
+                    .data(s3Url)
+                    .build();
+
+        }catch (IOException e){
+
+            throw new RuntimeException(e.getMessage());
+        }
+    }
 	
 }

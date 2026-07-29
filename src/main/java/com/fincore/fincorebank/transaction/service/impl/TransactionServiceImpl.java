@@ -1,5 +1,6 @@
 package com.fincore.fincorebank.transaction.service.impl;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,70 +51,119 @@ public class TransactionServiceImpl implements TransactionService{
 	@Override
 	@Transactional
 	public Response<?> createTransaction(TransactionRequest transactionRequest) {
-		Transaction transaction = new Transaction();
-		transaction.setTransactionType(transactionRequest.getTransactionType());
-		transaction.setAmount(transactionRequest.getAmount());
-		transaction.setDescription(transactionRequest.getDescription());
-		switch (transactionRequest.getTransactionType()) {
-			case DEPOSITE -> handleDeposite(transactionRequest, transaction);
-			case WITHDRAWAL -> handleWithdrawal(transactionRequest, transaction);
-			case TRANSFER -> handleTransfer(transactionRequest, transaction);
-			default -> throw new InvalidTransactionException("Invalid transaction type");
-		}
-		transaction.setStatus(TransactionStatus.COMPLETED);
-		Transaction savedTransaction = transactionRepo.save(transaction);
-		sendTransactionNotification(savedTransaction);
-		return Response.builder()
-				.statusCode(HttpStatus.OK.value())
-				.message("Transaction successful")
-				.build();
+	    if (transactionRequest.getTransactionType() == TransactionType.TRANSFER) {
+	        handleTransfer(transactionRequest);
+	    } else {
+	        Transaction transaction = new Transaction();
+	        transaction.setTransactionType(transactionRequest.getTransactionType());
+	        transaction.setAmount(transactionRequest.getAmount());
+	        transaction.setDescription(transactionRequest.getDescription());
+	        transaction.setStatus(TransactionStatus.COMPLETED);
+
+	        switch (transactionRequest.getTransactionType()) {
+	            case DEPOSITE -> handleDeposite(transactionRequest, transaction);
+	            case WITHDRAWAL -> handleWithdrawal(transactionRequest, transaction);
+	            default -> throw new InvalidTransactionException("Invalid transaction type");
+	        }
+
+	        Transaction savedTransaction = transactionRepo.save(transaction);
+	        sendTransactionNotification(savedTransaction);
+	    }
+
+	    return Response.builder()
+	            .statusCode(HttpStatus.OK.value())
+	            .message("Transaction successful")
+	            .build();
 	}
 
 	@Override
 	@Transactional
 	public Response<List<TransactionDTO>> getTransactionForMyAccount(String accountNumber, int page, int size) {
-		User user = userService.getCurrentLoggedInUser();
-		Account account = accountRepo.findByAccountNumber(accountNumber)
-				.orElseThrow(()-> new NotFoundException("Account not found"));
-		if (!account.getUser().getId().equals(user.getId())) {
-			throw new BadRequestException("Account doesn't belong to the authenticated user");		
-		}
-		Pageable pageable = PageRequest.of(page, size, Sort.by("transactionDate").descending());
-		Page<Transaction> transactions = transactionRepo.findByAccount_AccountNumber(accountNumber, pageable);
-		List<TransactionDTO> transactionDTOs = transactions.getContent()
-				.stream()
-				.map(transaction->modelMapper.map(transaction, TransactionDTO.class))
-				.toList();
-		return Response.<List<TransactionDTO>>builder()
-                .statusCode(HttpStatus.OK.value())
-                .message("Transactions retrieved")
-                .data(transactionDTOs)
-                .meta(Map.of(
-                        "currentPage", transactions.getNumber(),
-                        "totalItems", transactions.getTotalElements(),
-                        "totalPages", transactions.getTotalPages(),
-                        "pageSize", transactions.getSize()
-                ))
-                .build();
+	    User user = userService.getCurrentLoggedInUser();
+	    
+	    Account account = accountRepo.findByAccountNumber(accountNumber)
+	            .orElseThrow(() -> new NotFoundException("Account not found"));
+	            
+	    if (!account.getUser().getId().equals(user.getId())) {
+	        throw new BadRequestException("Account doesn't belong to the authenticated user");       
+	    }
+	    
+	    Pageable pageable = PageRequest.of(page, size, Sort.by("transactionDate").descending());
+	    
+	    Page<Transaction> transactions = transactionRepo.findByAccount_AccountNumber(accountNumber, pageable);
+	    
+	    List<TransactionDTO> transactionDTOs = transactions.getContent()
+	            .stream()
+	            .map(transaction -> {
+	                TransactionDTO dto = modelMapper.map(transaction, TransactionDTO.class);
+	                dto.setSourceAccount(transaction.getSourceAccount());
+	                dto.setDestinationAccount(transaction.getDestinationAccount());
+	                return dto;
+	            })
+	            .toList();
+
+	    return Response.<List<TransactionDTO>>builder()
+	            .statusCode(HttpStatus.OK.value())
+	            .message("Transactions retrieved")
+	            .data(transactionDTOs)
+	            .meta(Map.of(
+	                    "currentPage", transactions.getNumber(),
+	                    "totalItems", transactions.getTotalElements(),
+	                    "totalPages", transactions.getTotalPages(),
+	                    "pageSize", transactions.getSize()
+	            ))
+	            .build();
 	}
 	
-	private void handleTransfer(TransactionRequest transactionRequest, Transaction transaction) {
-		Account sourceAccount = accountRepo.findByAccountNumber(transactionRequest.getAccountNumber())
-				.orElseThrow(()-> new NotFoundException("Account not found"));
-		Account destinationAccount = accountRepo.findByAccountNumber(
-		        transactionRequest.getDestinationAccountNumber()
-		).orElseThrow(() -> new NotFoundException("Destination account not found"));
-		if (sourceAccount.getBalance().compareTo(transactionRequest.getAmount())<0) {
-			throw new InsufficientBalanceException("Balance not enuogh");
-		}
-		sourceAccount.setBalance(sourceAccount.getBalance().subtract(transactionRequest.getAmount()));
-		accountRepo.save(sourceAccount);
-		destinationAccount.setBalance(destinationAccount.getBalance().add(transactionRequest.getAmount()));
-		accountRepo.save(destinationAccount);
-		transaction.setAccount(sourceAccount);
-		transaction.setSourceAccount(sourceAccount.getAccountNumber());
-		transaction.setDestinationAccount(destinationAccount.getAccountNumber());
-		
+	private void handleTransfer(TransactionRequest transactionRequest) {
+	    Account sourceAccount = accountRepo.findByAccountNumber(transactionRequest.getAccountNumber())
+	            .orElseThrow(() -> new NotFoundException("Source account not found"));
+	            
+	    Account destinationAccount = accountRepo.findByAccountNumber(transactionRequest.getDestinationAccountNumber())
+	            .orElseThrow(() -> new NotFoundException("Destination account not found"));
+
+	    if (sourceAccount.getBalance().compareTo(transactionRequest.getAmount()) < 0) {
+	        throw new InsufficientBalanceException("Balance not enough");
+	    }
+
+	    LocalDateTime now = LocalDateTime.now();
+
+	    sourceAccount.setBalance(sourceAccount.getBalance().subtract(transactionRequest.getAmount()));
+	    accountRepo.save(sourceAccount);
+
+	    destinationAccount.setBalance(destinationAccount.getBalance().add(transactionRequest.getAmount()));
+	    accountRepo.save(destinationAccount);
+
+	    Transaction senderTx = Transaction.builder()
+	            .account(sourceAccount)
+	            .amount(transactionRequest.getAmount())
+	            .transactionType(TransactionType.TRANSFER)
+	            .transactionDate(now)
+	            .description(transactionRequest.getDescription() != null && !transactionRequest.getDescription().isBlank() 
+	                    ? transactionRequest.getDescription() 
+	                    : "Transfer to " + destinationAccount.getAccountNumber())
+	            .sourceAccount(sourceAccount.getAccountNumber())
+	            .destinationAccount(destinationAccount.getAccountNumber())
+	            .status(TransactionStatus.COMPLETED)
+	            .build();
+	    transactionRepo.save(senderTx);
+
+	    Transaction receiverTx = Transaction.builder()
+	            .account(destinationAccount)
+	            .amount(transactionRequest.getAmount())
+	            .transactionType(TransactionType.DEPOSITE) 
+	            .transactionDate(now)
+	            .description("Transfer from " + sourceAccount.getAccountNumber() + 
+	                    (transactionRequest.getDescription() != null && !transactionRequest.getDescription().isBlank() 
+	                    ? " - " + transactionRequest.getDescription() : ""))
+	            .sourceAccount(sourceAccount.getAccountNumber())
+	            .destinationAccount(destinationAccount.getAccountNumber())
+	            .status(TransactionStatus.COMPLETED)
+	            .build();
+	    transactionRepo.save(receiverTx);
+
+	    sendTransactionNotification(senderTx);
+	    sendTransactionNotification(receiverTx);
 	}
 
 	private void handleWithdrawal(TransactionRequest transactionRequest, Transaction transaction) {
@@ -137,71 +187,31 @@ public class TransactionServiceImpl implements TransactionService{
 	}
 	
 	private void sendTransactionNotification(Transaction transaction) {
-		User user = transaction.getAccount().getUser();
-		String subject, template;
-		Map<String, Object> templateVariableMap= new HashMap<String, Object>();
-		templateVariableMap.put("name", user.getFirstName());
-		templateVariableMap.put("amount", transaction.getAmount());
-		templateVariableMap.put("account number", transaction.getAccount().getAccountNumber());
-		templateVariableMap.put("date", transaction.getTransactionDate());
-		templateVariableMap.put("balance", transaction.getAccount().getBalance());
-		if (transaction.getTransactionType() == TransactionType.DEPOSITE){
-			subject = "Credit Alert";
-			template = "credit-alert";
-			
-			NotificationDTO notificationEmailToSentOut =NotificationDTO.builder()
-					.recipient(user.getEmail())
-					.subject(subject)
-					.templateName(template)
-					.templateVariables(templateVariableMap)
-					.build();
-			notificationService.sendEmail(notificationEmailToSentOut, user);
-		}
-		else if (transaction.getTransactionType() == TransactionType.WITHDRAWAL) {
-			subject = "Debit Alert";
-			template = "debit-alert";
-			
-			NotificationDTO notificationEmailToSentOut =NotificationDTO.builder()
-					.recipient(user.getEmail())
-					.subject(subject)
-					.templateName(template)
-					.templateVariables(templateVariableMap)
-					.build();
-			notificationService.sendEmail(notificationEmailToSentOut, user);
-		}
-		else if (transaction.getTransactionType() == TransactionType.TRANSFER) {
-			subject = "Debit Alert";
-			template = "debit-alert";
-			
-			NotificationDTO notificationEmailToSentOut =NotificationDTO.builder()
-					.recipient(user.getEmail())
-					.subject(subject)
-					.templateName(template)
-					.templateVariables(templateVariableMap)
-					.build();
-			notificationService.sendEmail(notificationEmailToSentOut, user);
-			
-			Account destAccount = accountRepo.findByAccountNumber(transaction.getDestinationAccount())
-					.orElseThrow(()->new NotFoundException("Destination account not found!"));
-			
-			User receiver = destAccount.getUser();
-			
-			Map<String, Object> receiverVariableMap= new HashMap<String, Object>();
-			receiverVariableMap.put("name", receiver.getFirstName());
-			receiverVariableMap.put("amount", transaction.getAmount());
-			receiverVariableMap.put("account number", destAccount.getAccountNumber());
-			receiverVariableMap.put("date", transaction.getTransactionDate());
-			receiverVariableMap.put("balance",destAccount.getBalance());
-			
-			NotificationDTO notificationEmailToSentOutTOReceiver =NotificationDTO.builder()
-					.recipient(receiver.getEmail())
-					.subject("Credit Alert")
-					.templateName("credit-alert")
-					.templateVariables(receiverVariableMap)
-					.build();
-			notificationService.sendEmail(notificationEmailToSentOutTOReceiver, receiver);
-		}
-			
+	    User user = transaction.getAccount().getUser();
+	    String subject, template;
+	    Map<String, Object> templateVariableMap = new HashMap<>();
+	    templateVariableMap.put("name", user.getFirstName());
+	    templateVariableMap.put("amount", transaction.getAmount());
+	    templateVariableMap.put("account number", transaction.getAccount().getAccountNumber());
+	    templateVariableMap.put("date", transaction.getTransactionDate());
+	    templateVariableMap.put("balance", transaction.getAccount().getBalance());
+
+	    if (transaction.getTransactionType() == TransactionType.DEPOSITE) {
+	        subject = "Credit Alert";
+	        template = "credit-alert";
+	    } else {
+	        subject = "Debit Alert";
+	        template = "debit-alert";
+	    }
+
+	    NotificationDTO notificationEmailToSentOut = NotificationDTO.builder()
+	            .recipient(user.getEmail())
+	            .subject(subject)
+	            .templateName(template)
+	            .templateVariables(templateVariableMap)
+	            .build();
+
+	    notificationService.sendEmail(notificationEmailToSentOut, user);
 	}
 
 }
