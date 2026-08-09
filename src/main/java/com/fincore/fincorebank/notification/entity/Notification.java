@@ -1,16 +1,9 @@
 package com.fincore.fincorebank.notification.entity;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 
-import com.fincore.fincorebank.account.entity.Account;
 import com.fincore.fincorebank.auth_users.entity.User;
-import com.fincore.fincorebank.enums.AccountStatus;
-import com.fincore.fincorebank.enums.AccountType;
-import com.fincore.fincorebank.enums.Currency;
 import com.fincore.fincorebank.enums.NotificationType;
-import com.fincore.fincorebank.transaction.entity.Transaction;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

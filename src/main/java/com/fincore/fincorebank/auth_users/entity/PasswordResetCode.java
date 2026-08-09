@@ -2,8 +2,6 @@ package com.fincore.fincorebank.auth_users.entity;
 
 import java.time.LocalDateTime;
 
-import org.springframework.context.annotation.Fallback;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;

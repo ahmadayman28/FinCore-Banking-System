@@ -37,7 +37,6 @@ import com.fincore.fincorebank.security.TokenService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import software.amazon.awssdk.regions.servicemetadata.AccountServiceMetadata;
 
 @Service
 @RequiredArgsConstructor
