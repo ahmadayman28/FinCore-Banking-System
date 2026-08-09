@@ -1,11 +1,11 @@
 package com.fincore.fincorebank.transaction.dtos;
 
+import java.math.BigDecimal;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fincore.fincorebank.enums.TransactionType;
 
 import lombok.Data;
-
-import java.math.BigDecimal;
 
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)

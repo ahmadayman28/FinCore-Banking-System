@@ -10,9 +10,7 @@ import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
 import com.fincore.fincorebank.auth_users.entity.User;
-import com.fincore.fincorebank.enums.NotificationType;
 import com.fincore.fincorebank.notification.dtos.NotificationDTO;
-import com.fincore.fincorebank.notification.entity.Notification;
 import com.fincore.fincorebank.notification.repo.NotificationRepo;
 import com.fincore.fincorebank.notification.service.NotificationService;
 
