@@ -1,7 +1,7 @@
 package com.fincore.fincorebank.enums;
 
 public enum TransactionType {
-	DEPOSITE,
+	DEPOSIT,
 	WITHDRAWAL,
 	TRANSFER
 }
