@@ -60,7 +60,7 @@ public class TransactionServiceImpl implements TransactionService{
 	        transaction.setStatus(TransactionStatus.COMPLETED);
 
 	        switch (transactionRequest.getTransactionType()) {
-	            case DEPOSITE -> handleDeposite(transactionRequest, transaction);
+	            case DEPOSIT -> handleDeposite(transactionRequest, transaction);
 	            case WITHDRAWAL -> handleWithdrawal(transactionRequest, transaction);
 	            default -> throw new InvalidTransactionException("Invalid transaction type");
 	        }
@@ -150,7 +150,7 @@ public class TransactionServiceImpl implements TransactionService{
 	    Transaction receiverTx = Transaction.builder()
 	            .account(destinationAccount)
 	            .amount(transactionRequest.getAmount())
-	            .transactionType(TransactionType.DEPOSITE) 
+	            .transactionType(TransactionType.DEPOSIT) 
 	            .transactionDate(now)
 	            .description("Transfer from " + sourceAccount.getAccountNumber() + 
 	                    (transactionRequest.getDescription() != null && !transactionRequest.getDescription().isBlank() 
@@ -195,7 +195,7 @@ public class TransactionServiceImpl implements TransactionService{
 	    templateVariableMap.put("date", transaction.getTransactionDate());
 	    templateVariableMap.put("balance", transaction.getAccount().getBalance());
 
-	    if (transaction.getTransactionType() == TransactionType.DEPOSITE) {
+	    if (transaction.getTransactionType() == TransactionType.DEPOSIT) {
 	        subject = "Credit Alert";
 	        template = "credit-alert";
 	    } else {
